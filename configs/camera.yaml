@@ -1,0 +1,14 @@
+# camera_name: "mindvision"
+# exposure_ms: 10
+# gamma: 0.5
+# vid_pid: "f622:d13a"
+
+camera_name: "hikrobot"
+exposure_ms: 50
+gain: 10.0
+vid_pid: "2bdf:0001"
+
+# camera_name: "daheng"   # <-- 启用大恒相机
+# exposure_ms: 5.0        # 曝光时间，单位是毫秒
+# gain: 5.0               # 增益
+# vid_pid: "0000:0000"    # GxAPI 通常使用序列号或 IP，但保留此项以兼容现有结构
