@@ -15,7 +15,7 @@
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
 
-static constexpr const char * kVideoPath = "/home/wheeltec/projects/my_sp_main/assets/demo/demo.mp4";
+static constexpr const char * kVideoPath = "/home/wheeltec/projects/my_sp_main/assets/demo/demo.avi";
 
 const std::string keys =
   "{help h usage ? |                   | 输出命令行参数说明 }"

@@ -45,6 +45,13 @@ private:
   double fire_thresh_;
   double low_speed_delay_time_, high_speed_delay_time_, decision_speed_;
 
+  bool use_ultra_spin_fire_gate_;
+  double ultra_spin_speed_;
+  double ultra_spin_fire_thresh_ratio_;
+  double ultra_spin_post_switch_hold_time_;
+  double ultra_spin_coming_angle_;
+  double ultra_spin_leaving_angle_;
+
   TinySolver * yaw_solver_;
   TinySolver * pitch_solver_;
 
@@ -53,6 +60,7 @@ private:
 
   Eigen::Matrix<double, 2, 1> aim(const Target & target, double bullet_speed);
   Trajectory get_trajectory(Target & target, double yaw0, double bullet_speed);
+  bool allow_ultra_spin_fire(const Target & target) const;
 };
 
 }  // namespace auto_aim

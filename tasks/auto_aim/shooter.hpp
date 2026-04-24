@@ -23,6 +23,14 @@ private:
   double first_tolerance_;
   double second_tolerance_;
   bool auto_fire_;
+
+  // 切板禁射功能开关与参数
+  bool enable_switch_forbid_;
+  int switch_forbid_frames_;
+
+  // 运行时状态
+  int last_target_id_;
+  int switch_block_frames_;
 };
 }  // namespace auto_aim
 

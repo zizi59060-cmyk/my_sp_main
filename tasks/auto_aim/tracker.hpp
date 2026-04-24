@@ -43,6 +43,12 @@ private:
   std::chrono::steady_clock::time_point last_timestamp_;
   ArmorPriority omni_target_priority_;
 
+  bool use_phase_jump_guard_;
+  double phase_jump_score_thresh_;
+  double phase_jump_guard_time_;
+  double phase_jump_dist_R_scale_;
+  double phase_jump_angle_R_scale_;
+
   void state_machine(bool found);
 
   bool set_target(std::list<Armor> & armors, std::chrono::steady_clock::time_point t);

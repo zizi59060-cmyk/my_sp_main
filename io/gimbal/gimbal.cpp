@@ -143,7 +143,7 @@ bool Gimbal::read(uint8_t* buffer, size_t size)
       total_read += n;
 
       if (n == 0) {
-        auqto now = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count() > 100) {
           tools::logger()->warn("[Gimbal] read timeout, read {} / {} bytes", total_read, size);
           return false;

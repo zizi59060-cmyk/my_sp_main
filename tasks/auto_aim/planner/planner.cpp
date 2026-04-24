@@ -13,6 +13,17 @@ namespace auto_aim
 Planner::Planner(const std::string & config_path)
 {
   auto yaml = tools::load(config_path);
+
+  auto read_or = [&](const std::string & key, double default_value) -> double {
+    if (yaml[key].IsDefined()) return yaml[key].as<double>();
+    return default_value;
+  };
+
+  auto read_or_bool = [&](const std::string & key, bool default_value) -> bool {
+    if (yaml[key].IsDefined()) return yaml[key].as<bool>();
+    return default_value;
+  };
+
   yaw_offset_ = tools::read<double>(yaml, "yaw_offset") / 57.3;
   pitch_offset_ = tools::read<double>(yaml, "pitch_offset") / 57.3;
   fire_thresh_ = tools::read<double>(yaml, "fire_thresh");
@@ -20,18 +31,23 @@ Planner::Planner(const std::string & config_path)
   high_speed_delay_time_ = tools::read<double>(yaml, "high_speed_delay_time");
   low_speed_delay_time_ = tools::read<double>(yaml, "low_speed_delay_time");
 
+  use_ultra_spin_fire_gate_ = read_or_bool("use_ultra_spin_fire_gate", false);
+  ultra_spin_speed_ = read_or("ultra_spin_speed", 4.0);
+  ultra_spin_fire_thresh_ratio_ = read_or("ultra_spin_fire_thresh_ratio", 0.6);
+  ultra_spin_post_switch_hold_time_ = read_or("ultra_spin_post_switch_hold_time", 0.10);
+  ultra_spin_coming_angle_ = read_or("ultra_spin_coming_angle", 50.0) / 57.3;
+  ultra_spin_leaving_angle_ = read_or("ultra_spin_leaving_angle", 20.0) / 57.3;
+
   setup_yaw_solver(config_path);
   setup_pitch_solver(config_path);
 }
 
 Plan Planner::plan(Target target, double bullet_speed)
 {
-  // 0. Check bullet speed
   if (bullet_speed < 10 || bullet_speed > 25) {
     bullet_speed = 22;
   }
 
-  // 1. Predict fly_time
   Eigen::Vector3d xyz;
   auto min_dist = 1e10;
   for (auto & xyza : target.armor_xyza_list()) {
@@ -41,10 +57,11 @@ Plan Planner::plan(Target target, double bullet_speed)
       xyz = xyza.head<3>();
     }
   }
+
   auto bullet_traj = tools::Trajectory(bullet_speed, min_dist, xyz.z());
   target.predict(bullet_traj.fly_time);
+  Target fire_gate_target = target;
 
-  // 2. Get trajectory
   double yaw0;
   Trajectory traj;
   try {
@@ -55,7 +72,6 @@ Plan Planner::plan(Target target, double bullet_speed)
     return {false};
   }
 
-  // 3. Solve yaw
   Eigen::VectorXd x0(2);
   x0 << traj(0, 0), traj(1, 0);
   tiny_set_x0(yaw_solver_, x0);
@@ -63,7 +79,6 @@ Plan Planner::plan(Target target, double bullet_speed)
   yaw_solver_->work->Xref = traj.block(0, 0, 2, HORIZON);
   tiny_solve(yaw_solver_);
 
-  // 4. Solve pitch
   x0 << traj(2, 0), traj(3, 0);
   tiny_set_x0(pitch_solver_, x0);
 
@@ -85,11 +100,18 @@ Plan Planner::plan(Target target, double bullet_speed)
   plan.pitch_acc = pitch_solver_->work->u(0, HALF_HORIZON);
 
   auto shoot_offset_ = 2;
-  plan.fire =
-    std::hypot(
-      traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
-      traj(2, HALF_HORIZON + shoot_offset_) -
-        pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_;
+  auto tracking_error = std::hypot(
+    traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
+    traj(2, HALF_HORIZON + shoot_offset_) -
+      pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_));
+
+  plan.fire = tracking_error < fire_thresh_;
+
+  if (use_ultra_spin_fire_gate_ && plan.fire && std::abs(fire_gate_target.ekf_x()[7]) > ultra_spin_speed_) {
+    const double strict_thresh = fire_thresh_ * ultra_spin_fire_thresh_ratio_;
+    plan.fire = (tracking_error < strict_thresh) && allow_ultra_spin_fire(fire_gate_target);
+  }
+
   return plan;
 }
 
@@ -101,7 +123,6 @@ Plan Planner::plan(std::optional<Target> target, double bullet_speed)
     std::abs(target->ekf_x()[7]) > decision_speed_ ? high_speed_delay_time_ : low_speed_delay_time_;
 
   auto future = std::chrono::steady_clock::now() + std::chrono::microseconds(int(delay_time * 1e6));
-
   target->predict(future);
 
   return plan(*target, bullet_speed);
@@ -156,7 +177,7 @@ void Planner::setup_pitch_solver(const std::string & config_path)
 Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_speed)
 {
   Eigen::Vector3d xyz;
-  double yaw;
+  double yaw = 0;
   auto min_dist = 1e10;
 
   for (auto & xyza : target.armor_xyza_list()) {
@@ -167,6 +188,7 @@ Eigen::Matrix<double, 2, 1> Planner::aim(const Target & target, double bullet_sp
       yaw = xyza[3];
     }
   }
+
   debug_xyza = Eigen::Vector4d(xyz.x(), xyz.y(), xyz.z(), yaw);
 
   auto azim = std::atan2(xyz.y(), xyz.x());
@@ -183,7 +205,7 @@ Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_s
   target.predict(-DT * (HALF_HORIZON + 1));
   auto yaw_pitch_last = aim(target, bullet_speed);
 
-  target.predict(DT);  // [0] = -HALF_HORIZON * DT -> [HHALF_HORIZON] = 0
+  target.predict(DT);
   auto yaw_pitch = aim(target, bullet_speed);
 
   for (int i = 0; i < HORIZON; i++) {
@@ -200,6 +222,38 @@ Trajectory Planner::get_trajectory(Target & target, double yaw0, double bullet_s
   }
 
   return traj;
+}
+
+bool Planner::allow_ultra_spin_fire(const Target & target) const
+{
+  if (target.time_since_last_switch() < ultra_spin_post_switch_hold_time_) {
+    return false;
+  }
+
+  const auto ekf_x = target.ekf_x();
+  const double w = ekf_x[7];
+  if (std::abs(w) <= ultra_spin_speed_) {
+    return true;
+  }
+
+  const auto center_yaw = std::atan2(ekf_x[2], ekf_x[0]);
+  const auto armor_xyza_list = target.armor_xyza_list();
+
+  for (const auto & xyza : armor_xyza_list) {
+    const double delta_angle = tools::limit_rad(xyza[3] - center_yaw);
+
+    if (w > 0) {
+      if (delta_angle > -ultra_spin_coming_angle_ && delta_angle < ultra_spin_leaving_angle_) {
+        return true;
+      }
+    } else {
+      if (delta_angle < ultra_spin_coming_angle_ && delta_angle > -ultra_spin_leaving_angle_) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 }  // namespace auto_aim

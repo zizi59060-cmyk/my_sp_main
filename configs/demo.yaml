@@ -19,7 +19,7 @@ yolov8_model_path: "assets/yolov8.engine"
 yolov5_model_path: "assets/yolov5.engine" 
 device: "GPU"
 min_confidence: 0.8
-use_traditional: true  # 用原生 bool 类型
+use_traditional: false  # 用原生 bool 类型
 
 #####-----ROI-----#####
 roi: 
@@ -48,21 +48,39 @@ max_temp_lost_count: 15
 outpost_max_temp_lost_count: 75
 
 #####-----aimer参数-----#####
-yaw_offset:  -7.5 #degree -2.5 -左 +右
-pitch_offset: 2.3 # degree 2 -下 +上
-comming_angle: 50 # degree
+yaw_offset:  -8 #degree -2.5 -YOU +ZUO
+pitch_offset: -3 # degree 2 -下 +上
+comming_angle: 60 # degree
 leaving_angle: 20
 
  # degree
 decision_speed: 8 # rad/s
-high_speed_delay_time: 0.025 # s
-low_speed_delay_time: 0.15 # s
+high_speed_delay_time: 0.04 # s
+low_speed_delay_time: 0.12 # s
+
+#####-----phase jump guard-----#####
+use_phase_jump_guard: false
+phase_jump_score_thresh: 0.45      # 匹配分数低于该阈值时，允许解释为“跳板”
+phase_jump_guard_time: 0.05        # s，切板后这段时间内认为“recent jump”
+phase_jump_dist_R_scale: 3.0       # 跳板帧放大量测距离噪声
+phase_jump_angle_R_scale: 4.0      # 跳板帧放大量测装甲板朝向噪声
+
+#####-----ultra spin fire gate-----#####
+use_ultra_spin_fire_gate: false
+ultra_spin_speed: 7               # rad/s，超过后进入极高速保守开火
+ultra_spin_fire_thresh_ratio: 0.3  # 极高速时 fire_thresh 额外收紧
+ultra_spin_post_switch_hold_time: 0.10   # s，切板后额外停火时间
+ultra_spin_coming_angle: 60        # degree，进入窗口角
+ultra_spin_leaving_angle: 20       # degree，离开窗口角
 
 #####-----shooter参数-----#####
-first_tolerance: 3 # 近距离射击容差，degree
-second_tolerance: 2 # 远距离射击容差，degree
+first_tolerance: 2.8 # 近距射击容差，degree
+second_tolerance: 0.5 # 远距离射击容差，degree
 judge_distance: 2 #距离判断阈值
 auto_fire: true # 是否由自瞄控制射击
+
+enable_switch_forbid: false   # 是否启用切板禁射
+switch_forbid_frames: 10     # 切板后禁射帧数\
 
 # camera_name: "hikrobot"
 # exposure_ms: 10
@@ -75,23 +93,33 @@ auto_fire: true # 是否由自瞄控制射击
 # vid_pid: "f622:d13a"
 
 camera_name: "daheng"   # <-- 启用大恒相机
-exposure_ms: 10 # 曝光时间，单位是毫秒
+exposure_ms: 7 # 曝光时间，单位是毫秒
 gain: 5.0               # 增益
 vid_pid: "0000:0000"    # GxAPI 通常使用序列号或 IP，但保留此项以兼容现有结构
 
 # -1  0  0
 #  0 -1  0
 #  0  0  1
-#R_gimbal2imubody: [-1, 0, 0, 0, -1, 0, 0, 0, -1]
+#R_gimbal2imubody: [-1, 0, 0, 0, -1, 0, 0,  ` 0, -1]
 # R_gimbal2imubody: [1, 0, 0, 0, 1, 0, 0, 0, 1]
 
+#####-----expert visualization-----#####
+use_expert_visualization: true
+show_detection_debug: true
+show_selected_detected_armor: true
+show_world_panel: false
+show_plotter_expert_channels: true
+
+world_panel_size: 300
+world_panel_scale: 180
 
 R_gimbal2imubody: [0, 1, 0, -1, 0, 0, 0, 0, 1] 
 
 # 重投影误差: 0.2697px
-camera_matrix: [1818.3669452465165, 0, 751.06226574703498, 0, 1822.494494078506, 530.43671556112133, 0, 0, 1]
-distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524674, 0.00083016311301273629, 0]
-
+# camera_matrix: [1818.3669452465165, 0, 751.06226574703498, 0, 1822.494494078506, 530.43671556112133, 0, 0, 1]
+# distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524674, 0.00083016311301273629, 0]
+camera_matrix: [1992.5566242289651, 0, 789.00081107157985, 0, 1984.0006015259812, 691.73900235137444, 0, 0, 1]
+distort_coeffs: [0.0012857389739740943, 0.23267483069993888, 0.017263763910792727, 0.0046014424148957201, 0]
 # 相机同理想情况的偏角: yaw0.46 pitch0.61 roll-1.53 degree
 # R_camera2gimbal: [-0.0083195760046954614, 0.010498791137270739, 0.99991027599468041, -0.99960756138647755, -0.026835747568381807, -0.0080352891314148939, 0.026748978935305992, -0.99958472279097077, 0.010717933047771133]
 # t_camera2gimbal: [0.094969301833534511, 0.095006290298006682, 0.050987066291756609]
@@ -101,10 +129,14 @@ distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524
 
  #  相机偏角: yaw -0.80°, pitch 2.69°, roll 0.78° 
 # R_camera2gimbal: [0.06313447116198774, -0.014100517591196573, 0.99790541333072114, -0.99595635203416444, -0.064925420839248557, 0.062093756301635106, 0.063913874815226202, -0.99779049160257482, -0.018142532171577561]
-# t_camera2gimbal: [0.0039278234536030939, 0.03807360317812699, 0.047892929710077081]
-R_camera2gimbal: [0.06313447116198774, -0.014100517591196573, 0.99790541333072114, -0.99595635203416444, -0.064925420839248557, 0.062093756301635106, 0.063913874815226202, -0.99779049160257482, -0.018142532171577561]
+# t_camera2gimbal: [0.003927823453630939, 0.03807360317812699, 0.047892929710077081]
+##=R_camera2gimbal: [0.06313447116198774, -0.014100517591196573, 0.99790541333072114, -0.99595635203416444, -0.064925420839248557, 0.062093756301635106, 0.063913874815226202, -0.99779049160257482, -0.018142532171577561]
 t_camera2gimbal: [0.0039278234536030939, 0.03807360317812699, 0.047892929710077081]
-
+R_camera2gimbal: [
+   0.063522, -0.020210,  0.997771,  # 第一行
+  -0.995932, -0.065301,  0.062086,  # 第二行
+   0.063906, -0.997664, -0.024251   # 第三行
+]
 #####-----cboard参数-----#####
 quaternion_canid: 0x100
 bullet_speed_canid: 0x101
@@ -115,8 +147,7 @@ can_interface: "can0"
 com_port: "/dev/gimbal"
 #com_port: "/dev/pts/2"
 #####-----planner-----#####
-fire_thresh: 0.004
-
+fire_thresh: 0.001
 max_yaw_acc: 50
 Q_yaw: [9e6, 0]
 R_yaw: [1]
