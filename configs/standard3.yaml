@@ -170,4 +170,7 @@ jlu_buff:
     iterative_fly_time: true
     yaw_offset: 0.0
     pitch_offset: 0.0
+    gravity: 9.80665
+    air_resistance_coefficient: 0.0
+    ballistic_max_iterate_count: 20
 

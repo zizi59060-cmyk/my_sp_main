@@ -295,6 +295,11 @@ sed -n '1,220p' tasks/auto_buff/jlu_buff/trajectory.cpp
 
 日志中重点看：TensorRT engine 加载/构建、infer 耗时、检测数量、五点坐标、PnP 是否成功、`TrackState`、SmallBuff roll/vroll、BigBuff fitter params、bullet speed、predict offset、yaw/pitch/fire。
 
+
+### JLU tracker parity notes
+
+The TensorRT branch intentionally differs from upstream JLU only in detector backend, configuration/logging framework, process framework, and final command output. The tracker-side code keeps the original algorithmic roles: JLU five-point metadata is retained locally, PnP uses the coplanar JLU-size object layout with `SOLVEPNP_IPPE`, ISAM2 uses temporal center/roll/vroll factors plus per-blade pose factors, BigBuff fitting uses sin/cos wrapped residuals with `CauchyLoss`, and trajectory solving keeps configurable gravity/air-resistance parameters rather than a hard-coded throw.
+
 ## 10. 常见问题
 
 - 找不到 TensorRT：设置 `TensorRT_ROOT`，确认 `NvInfer.h`、`libnvinfer.so` 存在，重新 `cmake .. -DTensorRT_ROOT=...`。

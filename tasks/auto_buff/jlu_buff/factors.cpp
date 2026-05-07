@@ -102,7 +102,7 @@ gtsam::Vector BuffBladeFactor::evaluateError(
 
   const double blade_roll = roll + blade_index_ * 2.0 * CV_PI / 5.0;
   const Eigen::Vector3d predicted_blade =
-    center.vector() + Eigen::AngleAxisd(blade_roll, Eigen::Vector3d::UnitX()) * Eigen::Vector3d(0.0, 0.0, kBuffRadius);
+    center.vector() + Eigen::AngleAxisd(blade_roll, Eigen::Vector3d::UnitZ()) * buff_blade_center_object_point(kBuffRadius);
 
   gtsam::Vector e(4);
   e.segment<3>(0) = predicted_blade - blade_position_;

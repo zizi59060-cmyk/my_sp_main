@@ -52,7 +52,7 @@ Eigen::Vector3d Trajectory::bladePoint(const BuffState & state, int idx, double 
   // The incoming BuffState may already be predicted by target-specific logic.
   // Only rotate the current radius by the extra fly-time horizon here.
   const double delta_roll = state.vroll * predict_sec;
-  Eigen::AngleAxisd R(delta_roll, Eigen::Vector3d::UnitX());
+  Eigen::AngleAxisd R(delta_roll, Eigen::Vector3d::UnitZ());
   return state.center_world + R * radius_vec;
 }
 
@@ -81,14 +81,32 @@ TrajectorySolution Trajectory::solve(const BuffState & state, double bullet_spee
     fly_time = new_fly_time;
   }
 
-  constexpr double g = 9.80665;
   const double x = aim_point.x();
   const double y = aim_point.y();
   const double z = aim_point.z();
   const double horizontal = std::hypot(x, y);
-  const double drop = 0.5 * g * fly_time * fly_time;
   sol.yaw = std::atan2(y, x) + config_.yaw_offset;
-  sol.pitch = std::atan2(z + drop, horizontal) + config_.pitch_offset;
+
+  // Preserve the JLU ballistic-solver role instead of a single hard-coded gravity throw.
+  // This compact solver supports configurable gravity and first-order air resistance.
+  double pitch = std::atan2(z, horizontal);
+  for (int i = 0; i < config_.ballistic_max_iterate_count; ++i) {
+    const double cos_pitch = std::max(1e-3, std::cos(pitch));
+    const double effective_speed = config_.air_resistance_coefficient > 1e-9
+      ? bullet_speed * std::exp(-config_.air_resistance_coefficient * std::max(0.0, fly_time))
+      : bullet_speed;
+    const double t = horizontal / std::max(1e-3, effective_speed * cos_pitch);
+    const double compensated_z = z + 0.5 * config_.gravity * t * t;
+    const double next_pitch = std::atan2(compensated_z, horizontal);
+    if (std::abs(next_pitch - pitch) < 1e-5) {
+      pitch = next_pitch;
+      fly_time = t;
+      break;
+    }
+    pitch = next_pitch;
+    fly_time = t;
+  }
+  sol.pitch = pitch + config_.pitch_offset;
   sol.fly_time = fly_time;
   sol.selected_blade = blade;
   sol.bullet_speed = bullet_speed;
@@ -114,6 +132,9 @@ TrajectoryConfig load_trajectory_config(const YAML::Node & node)
   c.iterative_fly_time = read_or<bool>(node, "iterative_fly_time", c.iterative_fly_time);
   c.yaw_offset = read_or<double>(node, "yaw_offset", c.yaw_offset) / 57.3;
   c.pitch_offset = read_or<double>(node, "pitch_offset", c.pitch_offset) / 57.3;
+  c.gravity = read_or<double>(node, "gravity", c.gravity);
+  c.air_resistance_coefficient = read_or<double>(node, "air_resistance_coefficient", c.air_resistance_coefficient);
+  c.ballistic_max_iterate_count = read_or<int>(node, "ballistic_max_iterate_count", c.ballistic_max_iterate_count);
   return c;
 }
 }  // namespace auto_buff::jlu

@@ -18,7 +18,12 @@ struct CurveResidual
   template <typename T>
   bool operator()(const T * const p, T * residual) const
   {
-    residual[0] = p[0] * sin(p[1] * T(t_) + p[2]) + p[3] - T(roll_);
+    const T pred = p[0] * sin(p[1] * T(t_) + p[2]) + p[3];
+    // JLU big-buff fitting uses a wrapped angle residual. Keep the sin/cos double
+    // residual so fitting remains continuous across +/-pi instead of directly
+    // subtracting roll.
+    residual[0] = sin(pred) - sin(T(roll_));
+    residual[1] = cos(pred) - cos(T(roll_));
     return true;
   }
   double t_;
@@ -99,14 +104,16 @@ void BuffFitter::fitOnce()
   double p[4] = {current.a, current.omega, current.phi, current.b};
   ceres::Problem problem;
   for (const auto & [t, roll] : history) {
-    problem.AddResidualBlock(new ceres::AutoDiffCostFunction<CurveResidual, 1, 4>(new CurveResidual(t, roll)), nullptr, p);
+    problem.AddResidualBlock(
+      new ceres::AutoDiffCostFunction<CurveResidual, 2, 4>(new CurveResidual(t, roll)),
+      new ceres::CauchyLoss(0.5), p);
   }
-  problem.SetParameterLowerBound(p, 0, 0.0 * config_.param_lower_bound_scale);
-  problem.SetParameterUpperBound(p, 0, 2.5 * config_.param_upper_bound_scale);
-  problem.SetParameterLowerBound(p, 1, 1.0 * config_.param_lower_bound_scale);
-  problem.SetParameterUpperBound(p, 1, 2.5 * config_.param_upper_bound_scale);
-  problem.SetParameterLowerBound(p, 3, 0.5 * config_.param_lower_bound_scale);
-  problem.SetParameterUpperBound(p, 3, 2.5 * config_.param_upper_bound_scale);
+  problem.SetParameterLowerBound(p, 0, 0.6 * config_.param_lower_bound_scale);
+  problem.SetParameterUpperBound(p, 0, 1.1 * config_.param_upper_bound_scale);
+  problem.SetParameterLowerBound(p, 1, 1.6 * config_.param_lower_bound_scale);
+  problem.SetParameterUpperBound(p, 1, 2.2 * config_.param_upper_bound_scale);
+  problem.SetParameterLowerBound(p, 3, 0.8 * config_.param_lower_bound_scale);
+  problem.SetParameterUpperBound(p, 3, 1.6 * config_.param_upper_bound_scale);
 
   ceres::Solver::Options options;
   options.max_num_iterations = 30;

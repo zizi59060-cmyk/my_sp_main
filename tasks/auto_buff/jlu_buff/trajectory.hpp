@@ -17,6 +17,9 @@ struct TrajectoryConfig
   bool iterative_fly_time = true;
   double yaw_offset = 0.0;
   double pitch_offset = 0.0;
+  double gravity = 9.80665;
+  double air_resistance_coefficient = 0.0;
+  int ballistic_max_iterate_count = 20;
 };
 
 class Trajectory

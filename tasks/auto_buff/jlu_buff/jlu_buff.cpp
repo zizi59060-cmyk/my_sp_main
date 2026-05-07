@@ -67,7 +67,7 @@ void JluBuffSystem::solvePnPAndTransform(std::vector<BuffBlade> & blades, TimePo
     // PnP uses the exact JLU point order: r_center, bottom_right, top_right, top_left, bottom_left.
     blade.pnp_ok = cv::solvePnP(
       object_points, image_points, camera_matrix_, distort_coeffs_, blade.rvec, blade.tvec, false,
-      cv::SOLVEPNP_EPNP);
+      cv::SOLVEPNP_IPPE);
     if (!blade.pnp_ok) {
       tools::logger()->warn("[JLU-Buff] five-point PnP failed");
       continue;
@@ -80,7 +80,7 @@ void JluBuffSystem::solvePnPAndTransform(std::vector<BuffBlade> & blades, TimePo
     Eigen::Vector3d t_buff2camera;
     cv::cv2eigen(cv::Mat(blade.tvec), t_buff2camera);
 
-    const Eigen::Vector3d blade_in_buff(0.0, 0.0, kBuffRadius);
+    const Eigen::Vector3d blade_in_buff = buff_blade_center_object_point(kBuffRadius);
     const Eigen::Vector3d center_in_camera = t_buff2camera;
     const Eigen::Vector3d blade_in_camera = R_buff2camera * blade_in_buff + t_buff2camera;
     const Eigen::Vector3d center_in_gimbal = R_camera2gimbal_ * center_in_camera + t_camera2gimbal_;
@@ -88,6 +88,7 @@ void JluBuffSystem::solvePnPAndTransform(std::vector<BuffBlade> & blades, TimePo
     blade.center_world = R_gimbal2world_ * center_in_gimbal;
     blade.position_camera = blade_in_camera;
     blade.position_world = R_gimbal2world_ * blade_in_gimbal;
+    blade.R_buff2world = R_gimbal2world_ * R_camera2gimbal_ * R_buff2camera;
     tools::logger()->debug(
       "[JLU-Buff] PnP ok conf={:.2f} points=[({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f})] center=({:.2f},{:.2f},{:.2f}) roll={:.3f}",
       blade.confidence, blade.points.image[0].x, blade.points.image[0].y, blade.points.image[1].x,

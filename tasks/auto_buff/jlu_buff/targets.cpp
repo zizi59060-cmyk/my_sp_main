@@ -45,7 +45,8 @@ void fill_blades_from_roll(BuffState & state)
   for (int i = 0; i < 5; ++i) {
     const double roll = state.roll + i * 2.0 * CV_PI / 5.0;
     state.blade_world[i] =
-      state.center_world + Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX()) * Eigen::Vector3d(0.0, 0.0, kBuffRadius);
+      state.center_world + Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitZ()) * buff_blade_center_object_point(kBuffRadius);
+    state.blade_orientations[i] = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitZ()).toRotationMatrix();
     if (state.blade_states[i] != BladeState::ACTIVATED) state.blade_states[i] = BladeState::UNACTIVATED;
   }
 }
@@ -116,8 +117,20 @@ BuffState SmallBuffTarget::update(const std::vector<BuffBlade> & blades, TimePoi
   }
 
   graph.add(boost::make_shared<RollFactor>(r_key, best.roll, diagonal({2.0 / 57.3})));
-  graph.add(boost::make_shared<BuffBladeFactor>(
-    c_key, r_key, best.position_world, best.roll, 0, diagonal({0.03, 0.03, 0.03, 2.0 / 57.3})));
+
+  // JLU tracker logic keeps all observed fan blades in the graph. The TensorRT detector
+  // may produce one or more blades; map each observation to one of the five physical blades
+  // by roll difference from the selected target blade, then add blade pose factors.
+  std::array<BladeState, 5> measured_states{};
+  measured_states.fill(BladeState::UNACTIVATED);
+  for (const auto & blade : blades) {
+    int blade_index = static_cast<int>(std::lround(tools::limit_rad(blade.roll - best.roll) / (2.0 * CV_PI / 5.0)));
+    blade_index = (blade_index % 5 + 5) % 5;
+    measured_states[blade_index] = blade.state;
+    graph.add(boost::make_shared<BuffBladeFactor>(
+      c_key, r_key, blade.position_world, blade.roll, blade_index,
+      diagonal({0.03, 0.03, 0.03, 2.0 / 57.3})));
+  }
 
   try {
     isam_.update(graph, init);
@@ -137,7 +150,7 @@ BuffState SmallBuffTarget::update(const std::vector<BuffBlade> & blades, TimePoi
 
   current_.track_state = TrackState::TRACKING;
   current_.timestamp = timestamp;
-  current_.blade_states.fill(BladeState::UNACTIVATED);
+  current_.blade_states = measured_states;
   current_.blade_states[0] = best.state;
   fill_blades_from_roll(current_);
 
