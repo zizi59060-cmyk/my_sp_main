@@ -40,7 +40,10 @@ protected:
   TrackState state_ = TrackState::LOST;
   BuffState current_;
   bool has_last_ = false;
+  size_t frame_index_ = 0;
   double last_roll_ = 0.0;
+  double last_vroll_ = 0.0;
+  Eigen::Vector3d last_center_ = Eigen::Vector3d::Zero();
   TimePoint last_timestamp_{};
   gtsam::ISAM2 isam_;
 };

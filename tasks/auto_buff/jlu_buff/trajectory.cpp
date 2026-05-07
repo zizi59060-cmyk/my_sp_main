@@ -49,8 +49,10 @@ Eigen::Vector3d Trajectory::bladePoint(const BuffState & state, int idx, double 
 {
   Eigen::Vector3d radius_vec = state.blade_world[idx] - state.center_world;
   if (radius_vec.norm() < 1e-4) radius_vec = Eigen::Vector3d(0.0, 0.0, kBuffRadius);
-  const double angle = state.roll + state.vroll * predict_sec;
-  Eigen::AngleAxisd R(angle, Eigen::Vector3d::UnitX());
+  // The incoming BuffState may already be predicted by target-specific logic.
+  // Only rotate the current radius by the extra fly-time horizon here.
+  const double delta_roll = state.vroll * predict_sec;
+  Eigen::AngleAxisd R(delta_roll, Eigen::Vector3d::UnitX());
   return state.center_world + R * radius_vec;
 }
 
