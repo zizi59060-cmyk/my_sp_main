@@ -32,3 +32,68 @@ com_port: "/dev/gimbal"
 #com_port: "/dev/pts/2"
 #####-----planner-----#####
 fire_thresh: 0.003
+#####-----JLU TensorRT 10.3 auto_buff-----#####
+jlu_buff:
+  enable: true
+  auto_fire_enable: true
+  predict_offset_ms: 70.0
+  detector:
+    backend: tensorrt
+    onnx_path: "models/buff/buff.onnx"
+    engine_path: "models/buff/buff_trt10_3.engine"
+    input_width: 640
+    input_height: 640
+    fp16: true
+    confidence_threshold: 0.5
+    nms_threshold: 0.45
+    device_id: 0
+    num_points: 5
+  small_buff_conf:
+    lost_threshold_sec: 0.8
+    match_conf:
+      max_match_distance_m: 1.0
+      max_match_roll_diff_degree: 30.0
+    blade_conf:
+      pixel_error: {x: 5.0, y: 5.0}
+      position_noise_m: {x: 0.03, y: 0.03, z: 0.03}
+      roll_noise_degree: 2.0
+    center_conf:
+      position_consistency_noise_m: {x: 0.01, y: 0.01, z: 0.01}
+      roll_noise_degree: 3.0
+      vroll_noise_rad: 0.10
+      position_prior_noise_m: {x: 0.10, y: 0.10, z: 0.10}
+      roll_prior_noise_degree: 30.0
+      vroll_prior_noise_rad: 6.0
+  big_buff_conf:
+    lost_threshold_sec: 1.0
+    fitter_conf:
+      queue_upper_limit: 200
+      queue_lower_limit: 100
+      param_lower_bound_scale: 1.0
+      param_upper_bound_scale: 1.0
+      curve_fitting_interval_time_ms: 20
+    match_conf:
+      max_match_distance_m: 1.0
+      max_match_roll_diff_degree: 30.0
+    blade_conf:
+      pixel_error: {x: 5.0, y: 5.0}
+      position_noise_m: {x: 0.03, y: 0.03, z: 0.03}
+      roll_noise_degree: 2.0
+    center_conf:
+      position_consistency_noise_m: {x: 0.01, y: 0.01, z: 0.01}
+      roll_noise_degree: 3.0
+      vroll_noise_rad: 0.10
+      position_prior_noise_m: {x: 0.10, y: 0.10, z: 0.10}
+      roll_prior_noise_degree: 30.0
+      vroll_prior_noise_rad: 6.0
+  trajectory_conf:
+    max_aim_iterate_count: 20
+    aim_ok_error_m: 0.005
+    blade_select_change_count_thres: 20
+    min_bullet_speed: 18.0
+    max_bullet_speed: 25.0
+    default_bullet_speed: 22.0
+    iterative_fly_time: true
+    yaw_offset: 0.0
+    pitch_offset: 0.0
+
