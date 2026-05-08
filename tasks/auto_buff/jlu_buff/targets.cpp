@@ -210,14 +210,32 @@ BuffState SmallBuffTarget::update(const std::vector<BuffBlade> & blades, TimePoi
   return current_;
 }
 
+// BuffState SmallBuffTarget::predict(double predict_sec) const
+// {
+//   auto out = current_;
+//   out.roll = predictedRoll(predict_sec);
+//   fill_blades_from_roll(out);
+//   return out;
+// }
 BuffState SmallBuffTarget::predict(double predict_sec) const
 {
   auto out = current_;
+
+  const double delta_roll = current_.vroll * predict_sec;
+
+  Eigen::Vector3d axis = out.rotation_axis_world;
+  if (!axis.allFinite() || axis.norm() < 1e-6) {
+    axis = Eigen::Vector3d::UnitZ();
+  }
+  axis.normalize();
+
   out.roll = predictedRoll(predict_sec);
+  out.radius_vector_world =
+    Eigen::AngleAxisd(delta_roll, axis) * out.radius_vector_world;
+
   fill_blades_from_roll(out);
   return out;
 }
-
 void SmallBuffTarget::reset()
 {
   state_ = TrackState::LOST;
@@ -255,15 +273,44 @@ BuffState BigBuffTarget::update(const std::vector<BuffBlade> & blades, TimePoint
   return state;
 }
 
+// BuffState BigBuffTarget::predict(double predict_sec) const
+// {
+//   auto out = current_;
+//   if (!has_start_ || !fitter_) return SmallBuffTarget::predict(predict_sec);
+//   const double t_now = tools::delta_time(current_.timestamp, start_time_);
+//   const auto p0 = fitter_->getBuffCurvePoint(t_now);
+//   const auto p1 = fitter_->getBuffCurvePoint(t_now + predict_sec);
+//   out.roll = tools::limit_rad(current_.roll + p1.angle - p0.angle);
+//   out.vroll = p1.velocity;
+//   fill_blades_from_roll(out);
+//   return out;
+// }
 BuffState BigBuffTarget::predict(double predict_sec) const
 {
   auto out = current_;
-  if (!has_start_ || !fitter_) return SmallBuffTarget::predict(predict_sec);
+
+  if (!has_start_ || !fitter_) {
+    return SmallBuffTarget::predict(predict_sec);
+  }
+
   const double t_now = tools::delta_time(current_.timestamp, start_time_);
+
   const auto p0 = fitter_->getBuffCurvePoint(t_now);
   const auto p1 = fitter_->getBuffCurvePoint(t_now + predict_sec);
-  out.roll = tools::limit_rad(current_.roll + p1.angle - p0.angle);
+
+  const double delta_roll = p1.angle - p0.angle;
+
+  Eigen::Vector3d axis = out.rotation_axis_world;
+  if (!axis.allFinite() || axis.norm() < 1e-6) {
+    axis = Eigen::Vector3d::UnitZ();
+  }
+  axis.normalize();
+
+  out.roll = tools::limit_rad(current_.roll + delta_roll);
   out.vroll = p1.velocity;
+  out.radius_vector_world =
+    Eigen::AngleAxisd(delta_roll, axis) * out.radius_vector_world;
+
   fill_blades_from_roll(out);
   return out;
 }

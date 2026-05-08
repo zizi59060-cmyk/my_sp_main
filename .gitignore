@@ -13,3 +13,15 @@ testvideos/
 watchdog.sh
 records_24/
 records_25/
+# local third-party repo
+gtsam/
+
+# generated videos/results
+*.avi
+*.mp4
+plan_big*.csv
+plan_big*.png
+
+# large model files
+*.engine
+*.onnx
