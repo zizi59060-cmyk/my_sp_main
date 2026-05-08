@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16.3)
 
 project(sp_vision)
 
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE Release)
 message(STATUS "--------------------CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}--------------------")
@@ -26,32 +28,20 @@ find_package(nlohmann_json REQUIRED)
 set(CUDAToolkit_ROOT "/usr/local/cuda")
 find_package(CUDA REQUIRED)
 
-# ---------------- TensorRT 配置 ----------------
-# 通常在 /usr/include/aarch64-linux-gnu/NvInfer.h 或 /usr/include/NvInfer.h
-set(TENSORRT_ROOT /usr)
-include_directories(${TENSORRT_ROOT}/include)
-
-find_library(NVINFER_LIB nvinfer HINTS ${TENSORRT_ROOT}/lib ${TENSORRT_ROOT}/lib/aarch64-linux-gnu)
-find_library(NVINFER_PLUGIN_LIB nvinfer_plugin HINTS ${TENSORRT_ROOT}/lib ${TENSORRT_ROOT}/lib/aarch64-linux-gnu)
-find_library(NVONNXPARSER_LIB nvonnxparser HINTS ${TENSORRT_ROOT}/lib ${TENSORRT_ROOT}/lib/aarch64-linux-gnu)
-find_library(NVINFER_BUILDER_LIB nvinfer_builder_resource HINTS ${TENSORRT_ROOT}/lib ${TENSORRT_ROOT}/lib/aarch64-linux-gnu)
-find_library(NVINFER_RUNTIME_LIB nvinfer_runtime HINTS ${TENSORRT_ROOT}/lib ${TENSORRT_ROOT}/lib/aarch64-linux-gnu)
-
-set(TENSORRT_LIBS
-    ${NVINFER_LIB}
-    ${NVINFER_PLUGIN_LIB}
-    ${NVONNXPARSER_LIB}
-    ${NVINFER_BUILDER_LIB}
-    ${NVINFER_RUNTIME_LIB}
-)
-
+# ---------------- TensorRT 10.3 / CUDA 配置 ----------------
+find_package(CUDAToolkit REQUIRED)
+find_package(CUDA REQUIRED)
+find_package(TensorRT REQUIRED)
+set(TENSORRT_LIBS ${TensorRT_LIBRARIES})
+message(STATUS "TensorRT include: ${TensorRT_INCLUDE_DIRS}")
 message(STATUS "TensorRT libs: ${TENSORRT_LIBS}")
-
 # ------------------------------------------------
 
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${CUDA_INCLUDE_DIRS})
+include_directories(${CUDAToolkit_INCLUDE_DIRS})
+include_directories(${TensorRT_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR})
 
 add_subdirectory(tools)
@@ -60,8 +50,6 @@ add_subdirectory(tasks/auto_aim)
 add_subdirectory(tasks/auto_buff)
 add_subdirectory(tasks/omniperception)
 
-# 全局导出 TensorRT 链接变量
-set(TENSORRT_LIBS ${TENSORRT_LIBS} PARENT_SCOPE)
 
 
 ####################src###################
@@ -164,7 +152,26 @@ target_link_libraries(auto_aim_camera_test
     glog
     gflags fmt::fmt yaml-cpp tools io auto_aim
 )
+add_executable(jlu_buff_detect_video tests/jlu_buff_detect_video.cpp)
 
+target_link_libraries(jlu_buff_detect_video
+    ${OpenCV_LIBS}
+    fmt::fmt
+    yaml-cpp
+    auto_buff
+    tools
+)
+add_executable(jlu_buff_plan_video tests/jlu_buff_plan_video.cpp)
+
+target_link_libraries(jlu_buff_plan_video
+    ${OpenCV_LIBS}
+    fmt::fmt
+    yaml-cpp
+    auto_aim
+    auto_buff
+    tools
+    io
+)
 add_executable(gimbal_test tests/gimbal_test.cpp)
 target_link_libraries(gimbal_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
 
@@ -173,7 +180,18 @@ target_link_libraries(planner_test ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim too
 
 add_executable(planner_test_offline tests/planner_test_offline.cpp)
 target_link_libraries(planner_test_offline ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
+add_executable(jlu_buff_vehicle_test tests/jlu_buff_vehicle_test.cpp)
 
+target_link_libraries(jlu_buff_vehicle_test
+    ${OpenCV_LIBS}
+    fmt::fmt
+    nlohmann_json::nlohmann_json
+    yaml-cpp
+    auto_aim
+    auto_buff
+    tools
+    io
+)
 # 检查 ROS 环境
 find_package(ament_cmake QUIET)
 find_package(rclcpp QUIET)

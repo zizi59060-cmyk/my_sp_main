@@ -10,6 +10,7 @@
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
 #include "tasks/auto_aim/yolo.hpp"
+#include "tasks/auto_buff/jlu_buff/jlu_buff.hpp"
 #include "tools/exiter.hpp"
 #include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
@@ -40,6 +41,7 @@ int main(int argc, char * argv[])
     auto_aim::Tracker tracker(config_path, solver);
     auto_aim::Planner planner(config_path);
     io::Gimbal gimbal(config_path);  // 串口通信对象
+    auto_buff::jlu::JluBuffSystem jlu_buff(config_path);
 
     cv::Mat img;
     double fps = 0.0;
@@ -59,28 +61,46 @@ int main(int argc, char * argv[])
         solver.set_R_gimbal2world(gimbal_q);
         auto gs = gimbal.state();
 
-        // -------------------- 自瞄核心 --------------------
-        auto armors = yolo.detect(img, 0);
-        auto targets = tracker.track(armors, frame_start);
+        // -------------------- 模式分支 --------------------
+        const auto mode = gimbal.mode();
+        if (mode == io::GimbalMode::SMALL_BUFF || mode == io::GimbalMode::BIG_BUFF) {
+            const auto buff_mode = mode == io::GimbalMode::SMALL_BUFF
+              ? auto_buff::jlu::BuffMode::SMALL
+              : auto_buff::jlu::BuffMode::BIG;
+            auto buff_plan = jlu_buff.run(img, buff_mode, gimbal_q, gs, frame_start);
+            gimbal.send(
+                buff_plan.control,
+                buff_plan.fire,
+                buff_plan.yaw,
+                buff_plan.yaw_vel,
+                buff_plan.yaw_acc,
+                buff_plan.pitch,
+                buff_plan.pitch_vel,
+                buff_plan.pitch_acc);
+        } else {
+            // -------------------- 自瞄核心：保持 my_sp_main 原 auto_aim 链路不变 --------------------
+            auto armors = yolo.detect(img, 0);
+            auto targets = tracker.track(armors, frame_start);
 
-        std::optional<auto_aim::Target> target = std::nullopt;
-        if (!targets.empty()) {
-            target = targets.front();
+            std::optional<auto_aim::Target> target = std::nullopt;
+            if (!targets.empty()) {
+                target = targets.front();
+            }
+
+            // 使用下位机发送的弹速作为最终弹速，并启用 Planner(MPC) 输出
+            auto plan = planner.plan(target, gs.bullet_speed);
+
+            // -------------------- 串口发送控制命令 --------------------
+            gimbal.send(
+                plan.control,
+                plan.fire,
+                plan.yaw,
+                plan.yaw_vel,
+                plan.yaw_acc,
+                plan.pitch,
+                plan.pitch_vel,
+                plan.pitch_acc);
         }
-
-        // 使用下位机发送的弹速作为最终弹速，并启用 Planner(MPC) 输出
-        auto plan = planner.plan(target, gs.bullet_speed);
-
-        // -------------------- 串口发送控制命令 --------------------
-        gimbal.send(
-            plan.control,
-            plan.fire,
-            plan.yaw,
-            plan.yaw_vel,
-            plan.yaw_acc,
-            plan.pitch,
-            plan.pitch_vel,
-            plan.pitch_acc);
 
         // -------------------- 帧率计算 --------------------
         auto frame_end = std::chrono::steady_clock::now();
