@@ -21,7 +21,7 @@ gtsam::Vector ConstPositionFactor::evaluateError(
 {
   if (H1) *H1 = -gtsam::Matrix::Identity(3, 3);
   if (H2) *H2 = gtsam::Matrix::Identity(3, 3);
-  return (current - previous).vector();
+  return current - previous;
 }
 
 RollFactor::RollFactor(gtsam::Key roll_key, double measured_roll, const gtsam::SharedNoiseModel & model)
@@ -102,7 +102,7 @@ gtsam::Vector BuffBladeFactor::evaluateError(
 
   const double blade_roll = roll + blade_index_ * 2.0 * CV_PI / 5.0;
   const Eigen::Vector3d predicted_blade =
-    center.vector() + Eigen::AngleAxisd(blade_roll, Eigen::Vector3d::UnitZ()) * buff_blade_center_object_point(kBuffRadius);
+    center + Eigen::AngleAxisd(blade_roll, Eigen::Vector3d::UnitZ()) * buff_blade_center_object_point(kBuffRadius);
 
   gtsam::Vector e(4);
   e.segment<3>(0) = predicted_blade - blade_position_;

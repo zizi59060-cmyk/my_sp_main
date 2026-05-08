@@ -192,12 +192,12 @@ jlu_buff:
   predict_offset_ms: 70.0
   detector:
     backend: tensorrt
-    onnx_path: "models/buff/buff.onnx"
-    engine_path: "models/buff/buff_trt10_3.engine"
-    input_width: 640
-    input_height: 640
+    onnx_path: "models/buff/yolox_rune.onnx"
+    engine_path: "models/buff/yolox_buff.engine"
+    input_width: 480
+    input_height: 480
     fp16: true
-    confidence_threshold: 0.5
+    confidence_threshold: 0.7
     nms_threshold: 0.45
     device_id: 0
     num_points: 5
@@ -244,11 +244,11 @@ jlu_buff:
     aim_ok_error_m: 0.005
     blade_select_change_count_thres: 20
     min_bullet_speed: 18.0
-    max_bullet_speed: 25.0
+    max_bullet_speed: 27.0
     default_bullet_speed: 22.0
     iterative_fly_time: true
-    yaw_offset: 0.0
-    pitch_offset: 0.0
+    yaw_offset: -8.5
+    pitch_offset: -3
     gravity: 9.80665
     air_resistance_coefficient: 0.0
     ballistic_max_iterate_count: 20

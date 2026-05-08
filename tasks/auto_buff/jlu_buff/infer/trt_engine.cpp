@@ -119,7 +119,9 @@ bool TrtEngine::buildFromOnnx()
   if (!input) return false;
   auto dims = input->getDimensions();
   if (dims.nbDims == 4 && (dims.d[2] < 0 || dims.d[3] < 0 || dims.d[0] < 0)) {
-    TrtUniquePtr<nvinfer1::IOptimizationProfile> profile(builder->createOptimizationProfile());
+    auto * profile = builder->createOptimizationProfile();
+    if (!profile) return false;
+
     nvinfer1::Dims fixed = dims;
     fixed.d[0] = 1;
     fixed.d[2] = config_.input_height;
@@ -127,7 +129,7 @@ bool TrtEngine::buildFromOnnx()
     profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kMIN, fixed);
     profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kOPT, fixed);
     profile->setDimensions(input->getName(), nvinfer1::OptProfileSelector::kMAX, fixed);
-    builder_config->addOptimizationProfile(profile.release());
+    builder_config->addOptimizationProfile(profile);
   }
 
   tools::logger()->info("[JLU-Buff-TRT] Building TensorRT engine from ONNX, this may take a while...");
@@ -208,8 +210,8 @@ cv::Mat TrtEngine::preprocess(const cv::Mat & image, LetterboxInfo & info) const
   cv::resize(image, resized, {resized_w, resized_h});
   cv::Mat canvas(config_.input_height, config_.input_width, CV_8UC3, cv::Scalar(114, 114, 114));
   resized.copyTo(canvas(cv::Rect(static_cast<int>(info.pad_x), static_cast<int>(info.pad_y), resized_w, resized_h)));
-  cv::cvtColor(canvas, canvas, cv::COLOR_BGR2RGB);
-  canvas.convertTo(canvas, CV_32F, 1.0 / 255.0);
+  // cv::cvtColor(canvas, canvas, cv::COLOR_BGR2RGB);
+  canvas.convertTo(canvas, CV_32F, 1.0);
   return canvas;
 }
 

@@ -113,12 +113,12 @@ jlu_buff:
   predict_offset_ms: 70.0
   detector:
     backend: tensorrt
-    onnx_path: "models/buff/buff.onnx"
-    engine_path: "models/buff/buff_trt10_3.engine"
-    input_width: 640
-    input_height: 640
+    onnx_path: "models/buff/yolox_rune.onnx"
+    engine_path: "models/buff/yolox_buff.engine"
+    input_width: 480
+    input_height: 480
     fp16: true
-    confidence_threshold: 0.5
+    confidence_threshold: 0.05
     nms_threshold: 0.45
     device_id: 0
     num_points: 5

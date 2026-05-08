@@ -84,6 +84,8 @@ struct BuffState
   std::array<BladeState, 5> blade_states{};
   double roll = 0.0;
   double vroll = 0.0;
+  Eigen::Vector3d rotation_axis_world = Eigen::Vector3d::UnitZ();
+Eigen::Vector3d radius_vector_world = Eigen::Vector3d(0.0, kBuffRadius, 0.0);
   TimePoint timestamp{};
 };
 

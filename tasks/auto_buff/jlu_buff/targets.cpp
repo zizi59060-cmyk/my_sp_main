@@ -40,14 +40,57 @@ BuffBlade choose_best(const std::vector<BuffBlade> & blades, const BuffState & l
   return *best;
 }
 
+// void fill_blades_from_roll(BuffState & state)
+// {
+//   for (int i = 0; i < 5; ++i) {
+//     const double roll = state.roll + i * 2.0 * CV_PI / 5.0;
+//     state.blade_world[i] =
+//       state.center_world + Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitZ()) * buff_blade_center_object_point(kBuffRadius);
+//     state.blade_orientations[i] = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+//     if (state.blade_states[i] != BladeState::ACTIVATED) state.blade_states[i] = BladeState::UNACTIVATED;
+//   }
+// }
 void fill_blades_from_roll(BuffState & state)
 {
+  Eigen::Vector3d axis = state.rotation_axis_world;
+
+  if (!axis.allFinite() || axis.norm() < 1e-6) {
+    axis = Eigen::Vector3d::UnitZ();
+  }
+
+  axis.normalize();
+
+  Eigen::Vector3d radius_vec = state.radius_vector_world;
+
+  if (!radius_vec.allFinite() || radius_vec.norm() < 1e-4) {
+    radius_vec = Eigen::Vector3d(0.0, kBuffRadius, 0.0);
+  }
+
+  // 统一半径长度，避免 PnP 抖动导致圆半径忽大忽小
+  radius_vec = radius_vec.normalized() * kBuffRadius;
+
+  // 确保半径向量在旋转平面内：去掉沿旋转轴的分量
+  radius_vec = radius_vec - axis * radius_vec.dot(axis);
+
+  if (!radius_vec.allFinite() || radius_vec.norm() < 1e-4) {
+    radius_vec = Eigen::Vector3d(0.0, kBuffRadius, 0.0);
+  }
+
+  radius_vec = radius_vec.normalized() * kBuffRadius;
+
+  state.radius_vector_world = radius_vec;
+  state.rotation_axis_world = axis;
+
   for (int i = 0; i < 5; ++i) {
-    const double roll = state.roll + i * 2.0 * CV_PI / 5.0;
-    state.blade_world[i] =
-      state.center_world + Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitZ()) * buff_blade_center_object_point(kBuffRadius);
-    state.blade_orientations[i] = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitZ()).toRotationMatrix();
-    if (state.blade_states[i] != BladeState::ACTIVATED) state.blade_states[i] = BladeState::UNACTIVATED;
+    const double delta = i * 2.0 * CV_PI / 5.0;
+    const Eigen::AngleAxisd R(delta, axis);
+
+    state.blade_world[i] = state.center_world + R * radius_vec;
+    state.blade_orientations[i] = R.toRotationMatrix();
+
+    if (state.blade_states[i] != BladeState::ACTIVATED) {
+      state.blade_states[i] = BladeState::UNACTIVATED;
+    }
   }
 }
 

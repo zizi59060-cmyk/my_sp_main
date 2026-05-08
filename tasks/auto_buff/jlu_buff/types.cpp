@@ -61,9 +61,19 @@ Eigen::Vector3d buff_blade_center_object_point(double radius)
   return {0.0, radius, 0.0};
 }
 
+// double blade_roll_from_points(const BuffBladePoints & points)
+// {
+//   const auto v = points.image[0] - (points.image[1] + points.image[4]) * 0.5F;
+//   return std::atan2(static_cast<double>(v.y), static_cast<double>(v.x));
+// }
 double blade_roll_from_points(const BuffBladePoints & points)
 {
-  const auto v = points.image[0] - (points.image[1] + points.image[4]) * 0.5F;
+  // roll should describe the direction from R center to blade center.
+  // points[0] = R center
+  // points[1] = bottom_right
+  // points[4] = bottom_left
+  const auto blade_bottom_center = (points.image[1] + points.image[4]) * 0.5F;
+  const auto v = blade_bottom_center - points.image[0];
   return std::atan2(static_cast<double>(v.y), static_cast<double>(v.x));
 }
 }  // namespace auto_buff::jlu
