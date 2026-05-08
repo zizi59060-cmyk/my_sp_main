@@ -124,9 +124,9 @@ void BuffFitter::fitOnce()
   if (summary.IsSolutionUsable()) {
     std::lock_guard lock(mutex_);
     params_ = {p[0], p[1], tools::limit_rad(p[2]), p[3]};
-    tools::logger()->debug(
-      "[JLU-Buff] BigBuff fitter params: a={:.4f} omega={:.4f} phi={:.4f} b={:.4f}",
-      params_.a, params_.omega, params_.phi, params_.b);
+    // tools::logger()->debug(
+    //   "[JLU-Buff] BigBuff fitter params: a={:.4f} omega={:.4f} phi={:.4f} b={:.4f}",
+    //   params_.a, params_.omega, params_.phi, params_.b);
   }
 }
 

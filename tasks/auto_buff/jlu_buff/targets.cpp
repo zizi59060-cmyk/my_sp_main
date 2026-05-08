@@ -22,23 +22,40 @@ T read_or(const YAML::Node & n, const std::string & key, const T & fallback)
 {
   return n && n[key] ? n[key].as<T>() : fallback;
 }
-
 BuffBlade choose_best(const std::vector<BuffBlade> & blades, const BuffState & last_state, bool has_last)
 {
   if (!has_last) {
-    return *std::max_element(
-      blades.begin(), blades.end(), [](const auto & a, const auto & b) { return a.confidence < b.confidence; });
+    return blades.front();
   }
 
   const auto best = std::min_element(blades.begin(), blades.end(), [&](const auto & a, const auto & b) {
     const double da = (a.center_world - last_state.center_world).norm() +
-                      0.15 * std::abs(tools::limit_rad(a.roll - last_state.roll));
+      0.15 * std::abs(tools::limit_rad(a.roll - last_state.roll));
+
     const double db = (b.center_world - last_state.center_world).norm() +
-                      0.15 * std::abs(tools::limit_rad(b.roll - last_state.roll));
+      0.15 * std::abs(tools::limit_rad(b.roll - last_state.roll));
+
     return da < db;
   });
+
   return *best;
 }
+// BuffBlade choose_best(const std::vector<BuffBlade> & blades, const BuffState & last_state, bool has_last)
+// {
+//   if (!has_last) {
+//     return *std::max_element(
+//       blades.begin(), blades.end(), [](const auto & a, const auto & b) { return a.confidence < b.confidence; });
+//   }
+
+//   const auto best = std::min_element(blades.begin(), blades.end(), [&](const auto & a, const auto & b) {
+//     const double da = (a.center_world - last_state.center_world).norm() +
+//                       0.15 * std::abs(tools::limit_rad(a.roll - last_state.roll));
+//     const double db = (b.center_world - last_state.center_world).norm() +
+//                       0.15 * std::abs(tools::limit_rad(b.roll - last_state.roll));
+//     return da < db;
+//   });
+//   return *best;
+// }
 
 // void fill_blades_from_roll(BuffState & state)
 // {
@@ -50,50 +67,73 @@ BuffBlade choose_best(const std::vector<BuffBlade> & blades, const BuffState & l
 //     if (state.blade_states[i] != BladeState::ACTIVATED) state.blade_states[i] = BladeState::UNACTIVATED;
 //   }
 // }
+// void fill_blades_from_roll(BuffState & state)
+// {
+//   Eigen::Vector3d axis = state.rotation_axis_world;
+
+//   if (!axis.allFinite() || axis.norm() < 1e-6) {
+//     axis = Eigen::Vector3d::UnitZ();
+//   }
+
+//   axis.normalize();
+
+//   Eigen::Vector3d radius_vec = state.radius_vector_world;
+
+//   if (!radius_vec.allFinite() || radius_vec.norm() < 1e-4) {
+//     radius_vec = Eigen::Vector3d(0.0, kBuffRadius, 0.0);
+//   }
+
+//   // 统一半径长度，避免 PnP 抖动导致圆半径忽大忽小
+//   radius_vec = radius_vec.normalized() * kBuffRadius;
+
+//   // 确保半径向量在旋转平面内：去掉沿旋转轴的分量
+//   radius_vec = radius_vec - axis * radius_vec.dot(axis);
+
+//   if (!radius_vec.allFinite() || radius_vec.norm() < 1e-4) {
+//     radius_vec = Eigen::Vector3d(0.0, kBuffRadius, 0.0);
+//   }
+
+//   radius_vec = radius_vec.normalized() * kBuffRadius;
+
+//   state.radius_vector_world = radius_vec;
+//   state.rotation_axis_world = axis;
+
+//   for (int i = 0; i < 5; ++i) {
+//     const double delta = i * 2.0 * CV_PI / 5.0;
+//     const Eigen::AngleAxisd R(delta, axis);
+
+//     state.blade_world[i] = state.center_world + R * radius_vec;
+//     state.blade_orientations[i] = R.toRotationMatrix();
+
+//     if (state.blade_states[i] != BladeState::ACTIVATED) {
+//       state.blade_states[i] = BladeState::UNACTIVATED;
+//     }
+//   }
+// // }
 void fill_blades_from_roll(BuffState & state)
 {
-  Eigen::Vector3d axis = state.rotation_axis_world;
+  state.roll = tools::limit_rad(state.roll);
 
-  if (!axis.allFinite() || axis.norm() < 1e-6) {
-    axis = Eigen::Vector3d::UnitZ();
-  }
+  state.rotation_axis_world = buff_rotation_axis_from_center(state.center_world);
 
-  axis.normalize();
-
-  Eigen::Vector3d radius_vec = state.radius_vector_world;
-
-  if (!radius_vec.allFinite() || radius_vec.norm() < 1e-4) {
-    radius_vec = Eigen::Vector3d(0.0, kBuffRadius, 0.0);
-  }
-
-  // 统一半径长度，避免 PnP 抖动导致圆半径忽大忽小
-  radius_vec = radius_vec.normalized() * kBuffRadius;
-
-  // 确保半径向量在旋转平面内：去掉沿旋转轴的分量
-  radius_vec = radius_vec - axis * radius_vec.dot(axis);
-
-  if (!radius_vec.allFinite() || radius_vec.norm() < 1e-4) {
-    radius_vec = Eigen::Vector3d(0.0, kBuffRadius, 0.0);
-  }
-
-  radius_vec = radius_vec.normalized() * kBuffRadius;
-
-  state.radius_vector_world = radius_vec;
-  state.rotation_axis_world = axis;
+  state.radius_vector_world =
+    buff_blade_hit_position_from_center_roll(state.center_world, state.roll, kBuffRadius) -
+    state.center_world;
 
   for (int i = 0; i < 5; ++i) {
-    const double delta = i * 2.0 * CV_PI / 5.0;
-    const Eigen::AngleAxisd R(delta, axis);
+    const double roll = tools::limit_rad(state.roll + i * kBuffBladeRollStep);
 
-    state.blade_world[i] = state.center_world + R * radius_vec;
-    state.blade_orientations[i] = R.toRotationMatrix();
+    state.blade_world[i] =
+      buff_blade_hit_position_from_center_roll(state.center_world, roll, kBuffRadius);
+
+    state.blade_orientations[i] =
+      buff_blade_orientation_from_center_roll(state.center_world, roll);
 
     if (state.blade_states[i] != BladeState::ACTIVATED) {
       state.blade_states[i] = BladeState::UNACTIVATED;
     }
   }
 }
-
 gtsam::SharedNoiseModel diagonal(std::initializer_list<double> sigmas)
 {
   gtsam::Vector v(static_cast<int>(sigmas.size()));
@@ -124,7 +164,7 @@ BuffState SmallBuffTarget::update(const std::vector<BuffBlade> & blades, TimePoi
       current_.track_state = state_;
       current_.timestamp = timestamp;
     }
-    tools::logger()->debug("[JLU-Buff] TrackState={}", to_string(state_));
+    //tools::logger()->debug("[JLU-Buff] TrackState={}", to_string(state_));
     return current_;
   }
 
@@ -203,10 +243,10 @@ BuffState SmallBuffTarget::update(const std::vector<BuffBlade> & blades, TimePoi
   last_vroll_ = current_.vroll;
   last_center_ = current_.center_world;
   last_timestamp_ = timestamp;
-  tools::logger()->debug(
-    "[JLU-Buff] SmallBuff TrackState={} center=({:.3f},{:.3f},{:.3f}) roll={:.4f} vroll={:.4f}",
-    to_string(state_), current_.center_world.x(), current_.center_world.y(), current_.center_world.z(),
-    current_.roll, current_.vroll);
+  // tools::logger()->debug(
+  //   "[JLU-Buff] SmallBuff TrackState={} center=({:.3f},{:.3f},{:.3f}) roll={:.4f} vroll={:.4f}",
+  //   to_string(state_), current_.center_world.x(), current_.center_world.y(), current_.center_world.z(),
+  //   current_.roll, current_.vroll);
   return current_;
 }
 

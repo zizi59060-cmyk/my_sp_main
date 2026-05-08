@@ -85,18 +85,172 @@ void JluBuffSystem::set_R_gimbal2world(const Eigen::Quaterniond & q)
     R_gimbal2imubody_.transpose() * R_imubody2imuabs * R_gimbal2imubody_;
 }
 
+// void JluBuffSystem::solvePnPAndTransform(
+//   std::vector<BuffBlade> & blades,
+//   TimePoint timestamp) const
+// {
+//   const auto object_points = buff_blade_object_points(kBuffRadius);
+
+//   for (auto & blade : blades) {
+//     std::vector<cv::Point2f> image_points(blade.points.image.begin(), blade.points.image.end());
+
+//     blade.timestamp = timestamp;
+
+//     // PnP uses the exact JLU point order:
+//     // r_center, bottom_right, top_right, top_left, bottom_left.
+//     blade.pnp_ok = cv::solvePnP(
+//       object_points,
+//       image_points,
+//       camera_matrix_,
+//       distort_coeffs_,
+//       blade.rvec,
+//       blade.tvec,
+//       false,
+//       cv::SOLVEPNP_IPPE);
+
+//     if (!blade.pnp_ok) {
+//       tools::logger()->warn("[JLU-Buff] five-point PnP failed");
+//       continue;
+//     }
+
+//     cv::Mat rmat_cv;
+//     cv::Rodrigues(blade.rvec, rmat_cv);
+
+//     Eigen::Matrix3d R_buff2camera;
+//     cv::cv2eigen(rmat_cv, R_buff2camera);
+
+//     Eigen::Vector3d t_buff2camera;
+//     cv::cv2eigen(cv::Mat(blade.tvec), t_buff2camera);
+
+//     const Eigen::Vector3d blade_in_buff = buff_blade_center_object_point(kBuffRadius);
+
+//     const Eigen::Vector3d center_in_camera = t_buff2camera;
+//     const Eigen::Vector3d blade_in_camera = R_buff2camera * blade_in_buff + t_buff2camera;
+
+//     const Eigen::Vector3d center_in_gimbal =
+//       R_camera2gimbal_ * center_in_camera + t_camera2gimbal_;
+
+//     const Eigen::Vector3d blade_in_gimbal =
+//       R_camera2gimbal_ * blade_in_camera + t_camera2gimbal_;
+
+//     blade.center_world = R_gimbal2world_ * center_in_gimbal;
+//     blade.position_camera = blade_in_camera;
+//     blade.position_world = R_gimbal2world_ * blade_in_gimbal;
+//     blade.R_buff2world = R_gimbal2world_ * R_camera2gimbal_ * R_buff2camera;
+
+//     tools::logger()->debug(
+//       "[JLU-Buff] PnP ok conf={:.2f} "
+//       "points=[({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f})] "
+//       "center=({:.2f},{:.2f},{:.2f}) position=({:.2f},{:.2f},{:.2f}) radius={:.3f} roll={:.3f}",
+//       blade.confidence,
+//       blade.points.image[0].x,
+//       blade.points.image[0].y,
+//       blade.points.image[1].x,
+//       blade.points.image[1].y,
+//       blade.points.image[2].x,
+//       blade.points.image[2].y,
+//       blade.points.image[3].x,
+//       blade.points.image[3].y,
+//       blade.points.image[4].x,
+//       blade.points.image[4].y,
+//       blade.center_world.x(),
+//       blade.center_world.y(),
+//       blade.center_world.z(),
+//       blade.position_world.x(),
+//       blade.position_world.y(),
+//       blade.position_world.z(),
+//       (blade.position_world - blade.center_world).norm(),
+//       blade.roll);
+//   }
+
+//   blades.erase(
+//     std::remove_if(
+//       blades.begin(),
+//       blades.end(),
+//       [](const auto & b) {
+//         return !b.pnp_ok;
+//       }),
+//     blades.end());
+// }
+// void JluBuffSystem::solvePnPAndTransform(
+//   std::vector<BuffBlade> & blades, TimePoint timestamp) const
+// {
+//   const auto object_points = buff_blade_object_points(kBuffRadius);
+
+//   for (auto & blade : blades) {
+//     std::vector<cv::Point2f> image_points(
+//       blade.points.image.begin(), blade.points.image.end());
+
+//     blade.timestamp = timestamp;
+
+//     // JLU original point order:
+//     // r_center, bottom_right, top_right, top_left, bottom_left.
+//     blade.pnp_ok = cv::solvePnP(
+//       object_points, image_points, camera_matrix_, distort_coeffs_,
+//       blade.rvec, blade.tvec, false, cv::SOLVEPNP_IPPE);
+
+//     if (!blade.pnp_ok) {
+//       tools::logger()->warn("[JLU-Buff] five-point PnP failed");
+//       continue;
+//     }
+
+//     cv::Mat rmat_cv;
+//     cv::Rodrigues(blade.rvec, rmat_cv);
+
+//     Eigen::Matrix3d R_buff2camera;
+//     cv::cv2eigen(rmat_cv, R_buff2camera);
+
+//     Eigen::Vector3d t_buff2camera;
+//     cv::cv2eigen(cv::Mat(blade.tvec), t_buff2camera);
+
+//     // Original JLU solvePNP result.position is tvec, the r_center position.
+//     const Eigen::Vector3d center_in_camera = t_buff2camera;
+//     const Eigen::Vector3d center_in_gimbal =
+//       R_camera2gimbal_ * center_in_camera + t_camera2gimbal_;
+
+//     blade.center_world = R_gimbal2world_ * center_in_gimbal;
+
+//     // Keep current fields, but preserve original meaning:
+//     // position_camera/world are the r_center position, not the hit point.
+//     blade.position_camera = center_in_camera;
+//     blade.position_world = blade.center_world;
+
+//     blade.R_buff2world = R_gimbal2world_ * R_camera2gimbal_ * R_buff2camera;
+
+//     // Original JLU: rpy = rotationMatrixToRPY(R), roll = rpy(0).
+//     const Eigen::Vector3d rpy = buff_rotation_matrix_to_rpy(blade.R_buff2world);
+//     blade.roll = tools::limit_rad(rpy.x());
+
+//     // tools::logger()->debug(
+//     //   "[JLU-Buff] PnP ok conf={:.2f} points=[({:.1f},{:.1f}),({:.1f},{:.1f}),"
+//     //   "({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f})] center=({:.2f},{:.2f},{:.2f}) "
+//     //   "roll={:.3f}",
+//       // blade.confidence,
+//       // blade.points.image[0].x, blade.points.image[0].y,
+//       // blade.points.image[1].x, blade.points.image[1].y,
+//       // blade.points.image[2].x, blade.points.image[2].y,
+//       // blade.points.image[3].x, blade.points.image[3].y,
+//       // blade.points.image[4].x, blade.points.image[4].y,
+//       // blade.center_world.x(), blade.center_world.y(), blade.center_world.z(),
+//       // blade.roll);
+//   }
+
+//   blades.erase(
+//     std::remove_if(blades.begin(), blades.end(), [](const auto & b) { return !b.pnp_ok; }),
+//     blades.end());
+// }
 void JluBuffSystem::solvePnPAndTransform(
-  std::vector<BuffBlade> & blades,
-  TimePoint timestamp) const
+  std::vector<BuffBlade> & blades, TimePoint timestamp) const
 {
   const auto object_points = buff_blade_object_points(kBuffRadius);
 
   for (auto & blade : blades) {
-    std::vector<cv::Point2f> image_points(blade.points.image.begin(), blade.points.image.end());
+    std::vector<cv::Point2f> image_points(
+      blade.points.image.begin(), blade.points.image.end());
 
     blade.timestamp = timestamp;
 
-    // PnP uses the exact JLU point order:
+    // JLU original point order:
     // r_center, bottom_right, top_right, top_left, bottom_left.
     blade.pnp_ok = cv::solvePnP(
       object_points,
@@ -122,26 +276,28 @@ void JluBuffSystem::solvePnPAndTransform(
     Eigen::Vector3d t_buff2camera;
     cv::cv2eigen(cv::Mat(blade.tvec), t_buff2camera);
 
-    const Eigen::Vector3d blade_in_buff = buff_blade_center_object_point(kBuffRadius);
-
     const Eigen::Vector3d center_in_camera = t_buff2camera;
-    const Eigen::Vector3d blade_in_camera = R_buff2camera * blade_in_buff + t_buff2camera;
-
     const Eigen::Vector3d center_in_gimbal =
       R_camera2gimbal_ * center_in_camera + t_camera2gimbal_;
 
-    const Eigen::Vector3d blade_in_gimbal =
-      R_camera2gimbal_ * blade_in_camera + t_camera2gimbal_;
-
     blade.center_world = R_gimbal2world_ * center_in_gimbal;
-    blade.position_camera = blade_in_camera;
-    blade.position_world = R_gimbal2world_ * blade_in_gimbal;
-    blade.R_buff2world = R_gimbal2world_ * R_camera2gimbal_ * R_buff2camera;
+
+    // Important:
+    // In original JLU, blade pose translation is the R-center position.
+    // Do not store the hit point here.
+    blade.position_camera = center_in_camera;
+    blade.position_world = blade.center_world;
+
+    blade.R_buff2world =
+      R_gimbal2world_ * R_camera2gimbal_ * R_buff2camera;
+
+    const Eigen::Vector3d rpy = buff_rotation_matrix_to_rpy(blade.R_buff2world);
+    blade.roll = tools::limit_rad(rpy.x());
 
     tools::logger()->debug(
-      "[JLU-Buff] PnP ok conf={:.2f} "
-      "points=[({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f})] "
-      "center=({:.2f},{:.2f},{:.2f}) position=({:.2f},{:.2f},{:.2f}) radius={:.3f} roll={:.3f}",
+      "[JLU-Buff] PnP ok conf={:.2f} points=[({:.1f},{:.1f}),({:.1f},{:.1f}),"
+      "({:.1f},{:.1f}),({:.1f},{:.1f}),({:.1f},{:.1f})] center=({:.2f},{:.2f},{:.2f}) "
+      "roll={:.3f}",
       blade.confidence,
       blade.points.image[0].x,
       blade.points.image[0].y,
@@ -156,10 +312,6 @@ void JluBuffSystem::solvePnPAndTransform(
       blade.center_world.x(),
       blade.center_world.y(),
       blade.center_world.z(),
-      blade.position_world.x(),
-      blade.position_world.y(),
-      blade.position_world.z(),
-      (blade.position_world - blade.center_world).norm(),
       blade.roll);
   }
 
@@ -167,12 +319,9 @@ void JluBuffSystem::solvePnPAndTransform(
     std::remove_if(
       blades.begin(),
       blades.end(),
-      [](const auto & b) {
-        return !b.pnp_ok;
-      }),
+      [](const auto & b) { return !b.pnp_ok; }),
     blades.end());
 }
-
 bool JluBuffSystem::projectWorldToImage(
   const Eigen::Vector3d & point_world,
   cv::Point2f & image_point) const
@@ -277,15 +426,15 @@ JluBuffPlan JluBuffSystem::run(
   debug_.pnp_blades = blades;
   debug_.pnp_ms = ms_between(pnp_t1, pnp_t0);
 
-  tools::logger()->debug(
-    "[JLU-Buff] mode={} detect_ms={:.3f} pnp_ms={:.3f} total_detect_ms={:.3f} "
-    "detected_blades={} pnp_blades={}",
-    to_string(mode),
-    debug_.detect_ms,
-    debug_.pnp_ms,
-    debug_.detect_ms + debug_.pnp_ms,
-    debug_.detected_blades.size(),
-    debug_.pnp_blades.size());
+  // tools::logger()->debug(
+  //   "[JLU-Buff] mode={} detect_ms={:.3f} pnp_ms={:.3f} total_detect_ms={:.3f} "
+  //   "detected_blades={} pnp_blades={}",
+  //   to_string(mode),
+  //   debug_.detect_ms,
+  //   debug_.pnp_ms,
+  //   debug_.detect_ms + debug_.pnp_ms,
+  //   debug_.detected_blades.size(),
+  //   debug_.pnp_blades.size());
 
   BuffState state =
     mode == BuffMode::SMALL ? small_target_->update(blades, timestamp)
@@ -331,24 +480,24 @@ JluBuffPlan JluBuffSystem::run(
   plan.blade_index = sol.selected_blade;
   plan.fly_time = sol.fly_time;
 
-  tools::logger()->debug(
-    "[JLU-Buff] TrackState={} bullet_speed={:.2f} yaw={:.4f} pitch={:.4f} "
-    "blade={} fly={:.4f} fire={} auto_fire_enable={} "
-    "aim_world=({:.3f},{:.3f},{:.3f}) aim_img_valid={} aim_img=({:.1f},{:.1f})",
-    to_string(plan.track_state),
-    gimbal_state.bullet_speed,
-    plan.yaw,
-    plan.pitch,
-    plan.blade_index,
-    plan.fly_time,
-    plan.fire,
-    auto_fire_enable_,
-    debug_.aim_point_world.x(),
-    debug_.aim_point_world.y(),
-    debug_.aim_point_world.z(),
-    debug_.aim_point_image_valid,
-    debug_.aim_point_image.x,
-    debug_.aim_point_image.y);
+  // tools::logger()->debug(
+  //   "[JLU-Buff] TrackState={} bullet_speed={:.2f} yaw={:.4f} pitch={:.4f} "
+  //   "blade={} fly={:.4f} fire={} auto_fire_enable={} "
+  //   "aim_world=({:.3f},{:.3f},{:.3f}) aim_img_valid={} aim_img=({:.1f},{:.1f})",
+  //   to_string(plan.track_state),
+  //   gimbal_state.bullet_speed,
+  //   plan.yaw,
+  //   plan.pitch,
+  //   plan.blade_index,
+  //   plan.fly_time,
+  //   plan.fire,
+  //   auto_fire_enable_,
+  //   debug_.aim_point_world.x(),
+  //   debug_.aim_point_world.y(),
+  //   debug_.aim_point_world.z(),
+  //   debug_.aim_point_image_valid,
+  //   debug_.aim_point_image.x,
+  //   debug_.aim_point_image.y);
 
   finish_debug();
   return plan;

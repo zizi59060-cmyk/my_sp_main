@@ -63,9 +63,9 @@ std::vector<BuffBlade> TrtBuffDetector::detect(const cv::Mat & image)
   const auto t1 = std::chrono::steady_clock::now();
   auto blades = postprocess(raw, engine_->outputDims(), lb, image.size());
   const auto t2 = std::chrono::steady_clock::now();
-  tools::logger()->debug(
-    "[JLU-Buff] TensorRT infer={:.3f}ms postprocess={:.3f}ms blades={}",
-    tools::delta_time(t1, t0) * 1000.0, tools::delta_time(t2, t1) * 1000.0, blades.size());
+  // tools::logger()->debug(
+  //   "[JLU-Buff] TensorRT infer={:.3f}ms postprocess={:.3f}ms blades={}",
+  //   tools::delta_time(t1, t0) * 1000.0, tools::delta_time(t2, t1) * 1000.0, blades.size());
   return blades;
 }
 
@@ -245,7 +245,8 @@ std::vector<BuffBlade> TrtBuffDetector::postprocess(
     const int class_id = class1 > class0 ? 1 : 0;
     blade.state = class_id ? BladeState::ACTIVATED : BladeState::UNACTIVATED;
 
-    blade.roll = blade_roll_from_points(blade.points);
+    //blade.roll = blade_roll_from_points(blade.points);
+    blade.roll = 0.0;
     candidates.push_back(blade);
   }
 
